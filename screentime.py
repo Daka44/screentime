@@ -7,12 +7,49 @@ import win32process
 import psutil
 import requests
 
-# 1단계에서 복사한 디스코드 웹훅 주소를 아래 큰따옴표 안에 넣으세요.
-# 디스코드 알림이 필요 없으면 "" 그대로 비워두시면 됩니다.
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544697243058176150/NsyAoho8A1xXGURDfojgAI4nB0-a1kGltYiJ8rvyeVte8Pw3jSfs32qXbe2wCc6eqNu7"
+# =========================================================
+# [설정] 디스코드 웹훅 주소
+# 필요 없으면 "" 빈 문자열로 두세요.
+# =========================================================
+DISCORD_WEBHOOK_URL = "여기에_디스코드_웹훅_주소를_붙여넣으세요"
 
 LOG_TXT_FILE = "screentime_history.txt"
 SUMMARY_JSON_FILE = "screentime_summary.json"
+
+# =========================================================
+# [허용 목록] 여기 없는 프로그램/사이트는 전부 알림 대상입니다.
+# =========================================================
+
+# 1) 프로세스 이름만으로 허용할 프로그램 (전부 소문자로 입력)
+#    작업 관리자 -> 자세히 탭에서 정확한 exe 이름을 확인할 수 있어요.
+ALLOWED_PROCESSES = {
+    "code.exe",         # VS Code
+    "winword.exe",      # MS Word
+    "excel.exe",        # MS Excel
+    "powerpnt.exe",     # MS PowerPoint
+    "notion.exe",       # Notion 앱
+    "acrord32.exe",     # Adobe Reader
+    "explorer.exe",     # 파일 탐색기
+}
+
+# 2) 브라우저 창 "제목"에 아래 키워드가 포함되면 허용 (소문자로 비교)
+#    브라우저는 탭 제목이 곧 창 제목이라 이런 방식으로만 판단 가능해요.
+ALLOWED_TITLE_KEYWORDS = [
+    "docs.google.com",
+    "google docs",
+    "github",
+    "stack overflow",
+    "notion",
+    "wikipedia",
+    "위키백과",
+    "khan academy",
+    "coursera",
+    "인프런",
+    # 공부용으로 자주 쓰는 사이트/키워드를 여기에 계속 추가하세요.
+]
+
+# 3) 위 제목 키워드 검사를 적용할 브라우저 프로세스 목록
+BROWSER_PROCESSES = {"chrome.exe", "msedge.exe", "whale.exe", "firefox.exe", "opera.exe"}
 
 
 def get_active_window_info():
@@ -21,37 +58,53 @@ def get_active_window_info():
         hwnd = win32gui.GetForegroundWindow()
         if not hwnd:
             return "Unknown", "알 수 없는 창"
-        
+
         title = win32gui.GetWindowText(hwnd)
         if not title:
             title = "제목 없는 창"
-            
+
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
         try:
             proc = psutil.Process(pid)
             pname = proc.name()
         except Exception:
             pname = "Unknown"
-            
+
         return pname, title
     except Exception:
         return "Error", "감지 실패"
 
 
-def save_history_log(start_time, end_time, process_name, title, duration):
-    """시간대별 사용 내역 텍스트 기록"""
+def is_allowed(pname, title):
+    """허용 목록에 해당하면 True, 아니면 False(=알림 대상)"""
+    pname_lower = (pname or "").lower()
+    title_lower = (title or "").lower()
+
+    # 프로세스 자체가 허용 목록에 있으면 통과
+    if pname_lower in ALLOWED_PROCESSES:
+        return True
+
+    # 브라우저라면 제목에 허용 키워드가 있는지 확인
+    if pname_lower in BROWSER_PROCESSES:
+        return any(keyword.lower() in title_lower for keyword in ALLOWED_TITLE_KEYWORDS)
+
+    # 그 외(게임, 인스타그램 앱, 디스코드, 카톡 등)는 전부 알림 대상
+    return False
+
+
+def save_history_log(start_time, end_time, process_name, title, duration, flagged):
     start_str = start_time.strftime("%H:%M:%S")
     end_str = end_time.strftime("%H:%M:%S")
     date_str = start_time.strftime("%Y-%m-%d")
-    
-    log_line = f"[{date_str} {start_str} ~ {end_str}] ({duration}초) [{process_name}] {title}\n"
-    
+    mark = "🚫" if flagged else "✅"
+
+    log_line = f"[{date_str} {start_str} ~ {end_str}] ({duration}초) {mark} [{process_name}] {title}\n"
+
     with open(LOG_TXT_FILE, "a", encoding="utf-8") as f:
         f.write(log_line)
 
 
 def update_summary_json(title, duration):
-    """창 제목별 누적 사용 시간 JSON 기록"""
     summary = {}
     if os.path.exists(SUMMARY_JSON_FILE):
         try:
@@ -59,15 +112,14 @@ def update_summary_json(title, duration):
                 summary = json.load(f)
         except Exception:
             summary = {}
-            
+
     summary[title] = summary.get(title, 0) + int(duration)
-    
+
     with open(SUMMARY_JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
 
 def send_discord_alert(message):
-    """디스코드 웹훅 알림 전송"""
     if DISCORD_WEBHOOK_URL.strip() and "discord.com" in DISCORD_WEBHOOK_URL:
         try:
             requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
@@ -78,31 +130,32 @@ def send_discord_alert(message):
 def main():
     curr_pname, curr_title = get_active_window_info()
     start_time = datetime.now()
-    
+
     send_discord_alert("🟢 **[스크린타임] 감지 프로그램이 시작되었습니다.**")
-    
+
     while True:
         try:
             time.sleep(1)  # 1초 간격 감시
             new_pname, new_title = get_active_window_info()
-            
+
             if new_title != curr_title:
                 end_time = datetime.now()
                 duration = (end_time - start_time).total_seconds()
-                
-                # 2초 이상 열어둔 창만 기록
+
+                # 2초 이상 켜둔 창만 기록 (단순히 스쳐 지나간 창 제외)
                 if duration >= 2:
-                    save_history_log(start_time, end_time, curr_pname, curr_title, int(duration))
+                    flagged = not is_allowed(curr_pname, curr_title)
+                    save_history_log(start_time, end_time, curr_pname, curr_title, int(duration), flagged)
                     update_summary_json(curr_title, duration)
-                    
-                    # 유튜브 감지 시 디스코드 알림
-                    if "YouTube" in curr_title or "유튜브" in curr_title:
+
+                    if flagged:
                         send_discord_alert(
-                            f"⚠️ **[딴짓 경고]** 친구가 유튜브를 보고 있습니다!\n"
-                            f"• 사용 시간: {int(duration)}초\n"
-                            f"• 창 제목: `{curr_title}`"
+                            f"🚫 **[허용되지 않은 사용 감지]**\n"
+                            f"• 프로그램: `{curr_pname}`\n"
+                            f"• 창 제목: `{curr_title}`\n"
+                            f"• 사용 시간: {int(duration)}초"
                         )
-                
+
                 curr_pname, curr_title = new_pname, new_title
                 start_time = end_time
         except Exception:
