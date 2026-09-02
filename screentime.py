@@ -11,7 +11,7 @@ import requests
 # [설정] 디스코드 웹훅 주소
 # 필요 없으면 "" 빈 문자열로 두세요.
 # =========================================================
-DISCORD_WEBHOOK_URL = "여기에_디스코드_웹훅_주소를_붙여넣으세요"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544697243058176150/NsyAoho8A1xXGURDfojgAI4nB0-a1kGltYiJ8rvyeVte8Pw3jSfs32qXbe2wCc6eqNu7"
 
 LOG_TXT_FILE = "screentime_history.txt"
 SUMMARY_JSON_FILE = "screentime_summary.json"
