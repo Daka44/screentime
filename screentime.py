@@ -23,29 +23,20 @@ SUMMARY_JSON_FILE = "screentime_summary.json"
 # 1) 프로세스 이름만으로 허용할 프로그램 (전부 소문자로 입력)
 #    작업 관리자 -> 자세히 탭에서 정확한 exe 이름을 확인할 수 있어요.
 ALLOWED_PROCESSES = {
-    "code.exe",         # VS Code
-    "winword.exe",      # MS Word
-    "excel.exe",        # MS Excel
-    "powerpnt.exe",     # MS PowerPoint
-    "notion.exe",       # Notion 앱
-    "acrord32.exe",     # Adobe Reader
     "explorer.exe",     # 파일 탐색기
+    "spotify.exe",      # 스포티파이 PC 데스크톱 앱
 }
 
 # 2) 브라우저 창 "제목"에 아래 키워드가 포함되면 허용 (소문자로 비교)
 #    브라우저는 탭 제목이 곧 창 제목이라 이런 방식으로만 판단 가능해요.
 ALLOWED_TITLE_KEYWORDS = [
-    "docs.google.com",
-    "google docs",
-    "github",
-    "stack overflow",
-    "notion",
-    "wikipedia",
-    "위키백과",
-    "khan academy",
-    "coursera",
-    "인프런",
-    # 공부용으로 자주 쓰는 사이트/키워드를 여기에 계속 추가하세요.
+    "spotify",          # 스포티파이 (웹/앱 창 제목)
+    "megastudy",        # 메가스터디 영문
+    "메가스터디",        # 메가스터디 한글
+    "ebs",              # EBS
+    "chatgpt",          # ChatGPT (GPT)
+    "openai",           # OpenAI (GPT)
+    "gemini",           # Gemini
 ]
 
 # 3) 위 제목 키워드 검사를 적용할 브라우저 프로세스 목록
